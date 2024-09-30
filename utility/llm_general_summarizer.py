@@ -1,6 +1,6 @@
 import json
 import os
-from utility.phi3 import model_tokenizer, run_phi3, get_token_count
+from phi3 import model_tokenizer, run_phi3, get_token_count
 from transformers import AutoTokenizer
 import nltk
 from nltk.tokenize import sent_tokenize

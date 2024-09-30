@@ -2,7 +2,7 @@ import json
 import os
 import multiprocessing
 from tqdm import tqdm
-from llm_general_summarizer import *  # Assuming all summarizer-related functions are in summarizer.py
+from utility.llm_general_summarizer import *  # Assuming all summarizer-related functions are in summarizer.py
 import argparse
 
 def ensure_directory(directory):

@@ -1,4 +1,10 @@
-## General Runner Usage
+# A text summarizer using Phi 3
+
+* default_llm_commands.json - default instructions, you can create another file to change the commands
+* generation.args - you can adapt these to generate with other arguments
+
+
+## General Runner Usage (TODO UPDATE)
 
     python3 general_multi_process_gpu.py 
         --input_json ./youtube/videos.json 

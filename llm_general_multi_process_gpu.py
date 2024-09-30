@@ -27,6 +27,7 @@ def double_summarize_artifact(model_id,
                               second_summary_field,
                               sys_summarize_with_context,
                               sys_command_extract_with_context,
+                              generation_args,
                               context_field=None):
     """Process a single artifact."""
     if second_summary_field in artifact_json.keys():
@@ -35,23 +36,14 @@ def double_summarize_artifact(model_id,
     # Initialize model and tokenizer
     m, t = model_tokenizer(model_id)  # Initialize model and tokenizer
 
-    # FIXME set this through a config file
-    # ALSO ANY CONFIG OF THE PROMPTS
-    generation_args = {
-        "use_cache": True,
-        "max_new_tokens": 1000,  # Forced to add this due to constraints
-    }
-
     context = "" if context_field is None else artifact_json[context_field]
 
-    #sys_summarize_with_context = "Summarize this segment for main topics, maintaining consistency with the previous context."
     artifact_json[first_summmary_field] = get_first_summary(m, t, generation_args, 
                                                             artifact_json,
                                                             artifact_text_field,
                                                             sys_summarize_with_context,
                                                             context)  # Get mini-summary
     
-    #sys_command_extract_with_context="This text is part of a summary of a longer artifact text. Extract the key insights and main points and arguments, focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.",
     artifact_json[second_summary_field] = get_summary_over_summary(m, t, generation_args,
                                                                    artifact_json,
                                                                    first_summmary_field,
@@ -62,7 +54,7 @@ def double_summarize_artifact(model_id,
 
 def worker(worker_args):
     """Worker function for multiprocessing."""
-    artifacts_subset, partition_id, gpu_id, output_dir, model_id, artifact_text_field, first_summary_field, summary_over_summary_field, sys_summarize_with_context, sys_command_extract_with_context = worker_args
+    artifacts_subset, partition_id, gpu_id, output_dir, model_id, artifact_text_field, first_summary_field, summary_over_summary_field, sys_summarize_with_context, sys_command_extract_with_context, generation_args = worker_args
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     processed_artifacts = []
     
@@ -87,7 +79,8 @@ def worker(worker_args):
                                                            first_summary_field, 
                                                            summary_over_summary_field,
                                                            sys_summarize_with_context, 
-                                                           sys_command_extract_with_context, 
+                                                           sys_command_extract_with_context,
+                                                           generation_args,
                                                            context)
             processed_artifacts.append(processed_artifact)
         except Exception as e:
@@ -124,6 +117,32 @@ def main(args):
     debug_log("Getting data")
     debug_log("===================================\n")
 
+    # Set default generation_args
+    generation_args = {
+        "use_cache": True,
+        "max_new_tokens": 1000
+    }
+    # Override defaults if the generation_args_file is provided
+    if args.generation_args_file:
+        with open(args.generation_args_file, 'r') as file:
+            generation_args = json.load(file)
+
+    with open("default_llm_commands.json", 'r') as file:
+        default_sys_commands = json.load(file)
+    if args.sys_commands_file:
+        with open(args.sys_commands_file, 'r') as file:
+            sys_commands = json.load(file)
+            
+            if "sys_command_extract_with_context" in sys_commands.keys():
+                sys_command_extract_with_context = sys_commands['sys_command_extract_with_context']
+            else:
+                sys_command_extract_with_context = default_sys_commands['sys_command_extract_with_context']
+            
+            if "sys_summarize_with_context" in sys_commands.keys():
+                sys_summarize_with_context = sys_commands['sys_summarize_with_context']
+            else:
+                sys_summarize_with_context = default_sys_commands['sys_summarize_with_context']
+ 
     with open(args.input_json, 'r') as file:
         artifacts = json.load(file)
 
@@ -141,8 +160,9 @@ def main(args):
                 args.artifact_text_field,
                 args.first_summary_field,
                 args.summary_over_summary_field,
-                args.sys_summarize_with_context, # FIXME Use JSON to set some of these  variables
-                args.sys_command_extract_with_context) # FIXME use JSON to set some of these variables
+                sys_summarize_with_context,
+                sys_command_extract_with_context,
+                generation_args) # FIXME use JSON to set some of these variables
                 for i, partition in enumerate(artifact_partitions)
             ]
             for processed_partition, partition_id in pool.imap_unordered(worker, worker_args):
@@ -199,12 +219,11 @@ if __name__ == "__main__":
     parser.add_argument("--artifact_text_field",
                         required=True,
                         help="Field that holds the original text")
-    parser.add_argument("--sys_summarize_with_context",
-                        required=True,
-                        help="Instructions")
-    parser.add_argument("--sys_command_extract_with_context",
-                        required=True,
-                        help="Instructions")
+    parser.add_argument("--sys_commands_file", 
+                        help="Path to the JSON file containing system commands for llm model (optional).")
+    parser.add_argument("--generation_args_file", 
+                        help="Path to the JSON file containing generation arguments (optional).")
+
     args = parser.parse_args()
     
     multiprocessing.set_start_method('spawn')

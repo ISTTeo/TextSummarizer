@@ -1,0 +1,4 @@
+{
+    "sys_command_extract_with_context": "This text is part of a summary of a longer artifact text. Extract the key insights and main points and arguments, focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.",
+    "sys_summarize_with_context": "Summarize this segment for main topics, maintaining consistency with the previous context.",
+}

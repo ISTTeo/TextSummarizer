@@ -44,14 +44,14 @@ def double_summarize_artifact(model_id,
 
     context = "" if context_field is None else artifact_json[context_field]
 
-    sys_summarize_with_context = "Summarize this segment for main topics, maintaining consistency with the previous context."
+    #sys_summarize_with_context = "Summarize this segment for main topics, maintaining consistency with the previous context."
     artifact_json[first_summmary_field] = get_first_summary(m, t, generation_args, 
                                                             artifact_json,
                                                             artifact_text_field,
                                                             sys_summarize_with_context,
                                                             context)  # Get mini-summary
     
-    sys_command_extract_with_context="This text is part of a summary of a longer artifact text. Extract the key insights and main points and arguments, focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.",
+    #sys_command_extract_with_context="This text is part of a summary of a longer artifact text. Extract the key insights and main points and arguments, focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.",
     artifact_json[second_summary_field] = get_summary_over_summary(m, t, generation_args,
                                                                    artifact_json,
                                                                    first_summmary_field,

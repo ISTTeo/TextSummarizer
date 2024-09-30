@@ -5,16 +5,6 @@ from transformers import AutoTokenizer
 import nltk
 from nltk.tokenize import sent_tokenize
 
-def summarize(seg,model, tokenizer, generation_args):
-    sys = """
-        This is a segment of a video transcript.
-        Summarize this segment for main topics.
-        """
-    user = f"{seg}"
-    string = run_phi3(sys, user, model, tokenizer, generation_args)[-1]['content']
-    
-    return string
-
 def chunk_text(tokenizer, text, max_tokens=3000):
     sentences = sent_tokenize(text)
     chunks = []
@@ -71,40 +61,39 @@ def process_transcript_in_chunks(tokenizer, artifact_original_text, max_tokens_p
     if current_group:
         yield ' '.join(current_group)
 
-def summarize_with_context(segment, context, model, tokenizer, generation_args):
+def summarize_with_context(segment, context, model, tokenizer, generation_args, sys_summarize_with_context):
     sys = f"""
     This is a segment of an bigger textual artifact. The previous context is:
     {context}
-    
-    Summarize this segment for main topics, maintaining consistency with the previous context.
+    Instructions:\n
     """
+    sys += sys_summarize_with_context
     user = f"{segment}"
     string = run_phi3(sys, user, model, tokenizer, generation_args)[-1]['content']
     
     return string
 
-def extract_insights_with_context(text, context, model, tokenizer, generation_args):
+def extract_insights_with_context(text, context, model, tokenizer, generation_args, sys_command_extract_with_context):
     sys = f"""
-    Previous context:
+    This is a segment of an bigger textual artifact. The previous context is:
     {context}
-
-    This text is part of a summary of a longer video transcript. Extract the key insights and main points and arguments, 
-    focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.
+    Instructions:\n
     """
+    sys += sys_command_extract_with_context
     user = f"{text}"
     insights = run_phi3(sys, user, model, tokenizer, generation_args)[-1]['content']
     return insights
 
-def get_first_summary(m, t, generation_args, artifact, original_artifact_text_field, any_general_context=""):
+def get_first_summary(m, t, generation_args, artifact, original_artifact_text_field, sys_summarize_with_context, any_general_context=""):
     artifact_original_text = artifact[original_artifact_text_field]
     segment_generator = process_transcript_in_chunks(t, artifact_original_text, max_tokens_per_part=3000)
 
     summaries = []
-    context = f"This is the start of the artifact summary."
-    context = context + f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else context
+    context = f"This is the start of the artifact summary. "
+    context += f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else "There's no context at first"
 
     for segment in segment_generator:
-        summary = summarize_with_context(segment, context, m, t, generation_args)
+        summary = summarize_with_context(segment, context, m, t, generation_args, sys_summarize_with_context)
         summaries.append(summary)
         
         # Update context for next iteration
@@ -114,16 +103,16 @@ def get_first_summary(m, t, generation_args, artifact, original_artifact_text_fi
 
     return "\n".join(summaries)
 
-def get_summary_over_summary(m, t, generation_args, artifact, original_summary_field, any_general_context=""):
+def get_summary_over_summary(m, t, generation_args, artifact, original_summary_field, sys_command_extract_with_context, any_general_context=""):
     previous_summary = artifact[original_summary_field]
     chunks = chunk_text(t, previous_summary)
 
     insights_list = []
     context = f"This is the start of the artifact summary."
-    context = context + f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else context
+    context += f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else "There's no context at first"
 
     for chunk in chunks:
-        insights = extract_insights_with_context(chunk, context, m, t, generation_args)
+        insights = extract_insights_with_context(chunk, context, m, t, generation_args, sys_command_extract_with_context)
         insights_list.append(insights)
         
         # Update context for next iteration

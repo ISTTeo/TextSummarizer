@@ -2,7 +2,7 @@ import json
 import os
 import multiprocessing
 from tqdm import tqdm
-from Summarizer.llm_general_summarizer import *  # Assuming all summarizer-related functions are in summarizer.py
+from llm_general_summarizer import *  # Assuming all summarizer-related functions are in summarizer.py
 import argparse
 
 def ensure_directory(directory):
@@ -20,7 +20,14 @@ def debug_log(message):
     if args.debug:
         print(message)
 
-def double_summarize_artifact(model_id, artifact_json, artifact_text_field, first_summmary_field, second_summary_field, context_field=None):
+def double_summarize_artifact(model_id,
+                              artifact_json,
+                              artifact_text_field,
+                              first_summmary_field,
+                              second_summary_field,
+                              sys_summarize_with_context,
+                              sys_command_extract_with_context,
+                              context_field=None):
     """Process a single artifact."""
     if second_summary_field in artifact_json.keys():
         return artifact_json
@@ -36,21 +43,26 @@ def double_summarize_artifact(model_id, artifact_json, artifact_text_field, firs
     }
 
     context = "" if context_field is None else artifact_json[context_field]
+
+    sys_summarize_with_context = "Summarize this segment for main topics, maintaining consistency with the previous context."
     artifact_json[first_summmary_field] = get_first_summary(m, t, generation_args, 
                                                             artifact_json,
                                                             artifact_text_field,
+                                                            sys_summarize_with_context,
                                                             context)  # Get mini-summary
     
+    sys_command_extract_with_context="This text is part of a summary of a longer artifact text. Extract the key insights and main points and arguments, focusing on the most important information. Be consive, focus on key insights and, privilege presentation in listing(with possible identations), maintaining consistency with the previous context.",
     artifact_json[second_summary_field] = get_summary_over_summary(m, t, generation_args,
                                                                    artifact_json,
                                                                    first_summmary_field,
+                                                                   sys_command_extract_with_context,
                                                                    context)  # Get summary-over-summary
 
     return artifact_json
 
 def worker(worker_args):
     """Worker function for multiprocessing."""
-    artifacts_subset, partition_id, gpu_id, output_dir, model_id, artifact_text_field, first_summary_field, summary_over_summary_field = worker_args
+    artifacts_subset, partition_id, gpu_id, output_dir, model_id, artifact_text_field, first_summary_field, summary_over_summary_field, sys_summarize_with_context, sys_command_extract_with_context = worker_args
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     processed_artifacts = []
     
@@ -70,7 +82,13 @@ def worker(worker_args):
     for i, artifact in enumerate(artifacts_subset):
         try:
             context = context if context else None
-            processed_artifact = double_summarize_artifact(model_id, artifact, first_summary_field, summary_over_summary_field, context)
+            processed_artifact = double_summarize_artifact(model_id,
+                                                           artifact, 
+                                                           first_summary_field, 
+                                                           summary_over_summary_field,
+                                                           sys_summarize_with_context, 
+                                                           sys_command_extract_with_context, 
+                                                           context)
             processed_artifacts.append(processed_artifact)
         except Exception as e:
             print(f"Error processing artifact {artifact['url']} in partition {partition_id} on GPU {gpu_id}: {str(e)}")
@@ -117,7 +135,14 @@ def main(args):
         # Create the main progress bar
         with tqdm(total=len(artifacts), desc="Total Progress") as pbar:
             worker_args = [
-                (partition, i, gpu_list[(i // args.processes_per_gpu) % num_gpus], args.output_dir, args.model_id, args.artifact_text_field, args.first_summary_field, args.summary_over_summary_field) 
+                (partition, i, gpu_list[(i // args.processes_per_gpu) % num_gpus],
+                args.output_dir,
+                args.model_id,
+                args.artifact_text_field,
+                args.first_summary_field,
+                args.summary_over_summary_field,
+                args.sys_summarize_with_context, # FIXME Use JSON to set some of these  variables
+                args.sys_command_extract_with_context) # FIXME use JSON to set some of these variables
                 for i, partition in enumerate(artifact_partitions)
             ]
             for processed_partition, partition_id in pool.imap_unordered(worker, worker_args):
@@ -174,6 +199,12 @@ if __name__ == "__main__":
     parser.add_argument("--artifact_text_field",
                         required=True,
                         help="Field that holds the original text")
+    parser.add_argument("--sys_summarize_with_context",
+                        required=True,
+                        help="Instructions")
+    parser.add_argument("--sys_command_extract_with_context",
+                        required=True,
+                        help="Instructions")
     args = parser.parse_args()
     
     multiprocessing.set_start_method('spawn')

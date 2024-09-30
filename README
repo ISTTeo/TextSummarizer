@@ -5,7 +5,10 @@
         --output_dir ./youtube/partitions 
         --gpu_devices 5 6 7 
         --processes_per_gpu 2 
-        --model_id="microsoft/Phi-3.5-mini-instruct" --first_summary_field="phi_mini_summary" --summary_over_summary_field="summary_over_summary" --artifact_text_field="transcript"
+        --model_id="microsoft/Phi-3.5-mini-instruct"
+        --first_summary_field="phi_mini_summary" 
+        --summary_over_summary_field="summary_over_summary"
+        --artifact_text_field="transcript"
         --debug 
 
 ## Expected data

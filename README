@@ -6,16 +6,19 @@
 
 ## General Runner Usage (TODO UPDATE)
 
-    python3 general_multi_process_gpu.py 
-        --input_json ./youtube/videos.json 
-        --output_dir ./youtube/partitions 
-        --gpu_devices 5 6 7 
+    python3 llm_general_multi_process_gpu.py 
+        --input_json test.json  
+        --output_dir partitions 
+        --gpu_devices 2 3 4 
         --processes_per_gpu 2 
-        --model_id="microsoft/Phi-3.5-mini-instruct"
-        --first_summary_field="phi_mini_summary" 
-        --summary_over_summary_field="summary_over_summary"
-        --artifact_text_field="transcript"
+        --model_id "microsoft/Phi-3.5-mini-instruct" 
+        --first_summary_field "summary" 
+        --summary_over_summary_field "abstract" 
+        --artifact_text_field "text" 
+        --sys_commands_file llm_commands.json 
+        --generation_args_file generation_args.json 
         --debug 
+        --id_field "file_path"
 
 ## Expected data
 

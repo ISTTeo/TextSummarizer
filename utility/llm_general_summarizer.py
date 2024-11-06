@@ -1,6 +1,6 @@
 import json
 import os
-from phi3 import model_tokenizer, run_phi3, get_token_count
+from .phi3 import model_tokenizer, run_phi3, get_token_count
 from transformers import AutoTokenizer
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -84,13 +84,14 @@ def extract_insights_with_context(text, context, model, tokenizer, generation_ar
     insights = run_phi3(sys, user, model, tokenizer, generation_args)[-1]['content']
     return insights
 
-def get_first_summary(m, t, generation_args, artifact, original_artifact_text_field, sys_summarize_with_context, any_general_context=""):
+def get_first_summary(m, t, generation_args, artifact, original_artifact_text_field, sys_summarize_with_context, context_field=""):
     artifact_original_text = artifact[original_artifact_text_field]
     segment_generator = process_transcript_in_chunks(t, artifact_original_text, max_tokens_per_part=3000)
 
     summaries = []
     context = f"This is the start of the artifact summary. "
-    context += f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else "There's no context at first"
+
+    context += f"This is some general context for this artifact:\n {artifact[context_field]}" if context_field else "There's no context at first"
 
     for segment in segment_generator:
         summary = summarize_with_context(segment, context, m, t, generation_args, sys_summarize_with_context)
@@ -107,6 +108,7 @@ def get_summary_over_summary(m, t, generation_args, artifact, original_summary_f
     previous_summary = artifact[original_summary_field]
     chunks = chunk_text(t, previous_summary)
 
+    print("2nd_summary => chunks")
     insights_list = []
     context = f"This is the start of the artifact summary."
     context += f"This is some general context for this artifact:\n {artifact[any_general_context]}" if artifact[any_general_context] else "There's no context at first"

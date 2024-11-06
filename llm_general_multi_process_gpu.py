@@ -38,23 +38,25 @@ def double_summarize_artifact(model_id,
 
     context = "" if context_field is None else artifact_json[context_field]
 
+    print("Got model and context")
     artifact_json[first_summmary_field] = get_first_summary(m, t, generation_args, 
                                                             artifact_json,
                                                             artifact_text_field,
                                                             sys_summarize_with_context,
                                                             context)  # Get mini-summary
-    
+    print("1st summary")
     artifact_json[second_summary_field] = get_summary_over_summary(m, t, generation_args,
                                                                    artifact_json,
                                                                    first_summmary_field,
                                                                    sys_command_extract_with_context,
                                                                    context)  # Get summary-over-summary
+    print("2nd summary")
 
     return artifact_json
 
 def worker(worker_args):
     """Worker function for multiprocessing."""
-    artifacts_subset, partition_id, gpu_id, output_dir, model_id, artifact_text_field, first_summary_field, summary_over_summary_field, sys_summarize_with_context, sys_command_extract_with_context, generation_args = worker_args
+    artifacts_subset, partition_id, gpu_id, output_dir, model_id, id_field, artifact_text_field, first_summary_field, summary_over_summary_field, sys_summarize_with_context, sys_command_extract_with_context, generation_args = worker_args
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
     processed_artifacts = []
     
@@ -66,25 +68,25 @@ def worker(worker_args):
             processed_artifacts = json.load(file)
         
         # Create a set of processed artifact URLs for quick lookup
-        processed_urls = set(artifact['url'] for artifact in processed_artifacts)
+        processed_urls = set(artifact[id_field] for artifact in processed_artifacts)
         
         # Filter out already processed artifacts from artifacts_subset
-        artifacts_subset = [artifact for artifact in artifacts_subset if artifact['url'] not in processed_urls]
+        artifacts_subset = [artifact for artifact in artifacts_subset if artifact[id_field] not in processed_urls]
     
     for i, artifact in enumerate(artifacts_subset):
         try:
-            context = context if context else None
             processed_artifact = double_summarize_artifact(model_id,
                                                            artifact, 
+                                                           artifact_text_field,
                                                            first_summary_field, 
                                                            summary_over_summary_field,
                                                            sys_summarize_with_context, 
                                                            sys_command_extract_with_context,
                                                            generation_args,
-                                                           context)
+                                                           None) # FIXME add context field
             processed_artifacts.append(processed_artifact)
         except Exception as e:
-            print(f"Error processing artifact {artifact['url']} in partition {partition_id} on GPU {gpu_id}: {str(e)}")
+            print(f"Error processing artifact {artifact[id_field]} in partition {partition_id} on GPU {gpu_id}: {str(e)}")
             processed_artifacts.append(artifact)  # Append original artifact if processing fails
         
         # Save progress after each artifact
@@ -157,6 +159,7 @@ def main(args):
                 (partition, i, gpu_list[(i // args.processes_per_gpu) % num_gpus],
                 args.output_dir,
                 args.model_id,
+                args.id_field,
                 args.artifact_text_field,
                 args.first_summary_field,
                 args.summary_over_summary_field,
@@ -169,7 +172,7 @@ def main(args):
                 # Update the main artifact list with processed artifacts
                 for processed_artifact in processed_partition:
                     for i, artifact in enumerate(artifacts):
-                        if artifact['url'] == processed_artifact['url']:
+                        if artifact[args.id_field] == processed_artifact[args.id_field]:
                             artifacts[i] = processed_artifact
                             break
                     
@@ -223,6 +226,9 @@ if __name__ == "__main__":
                         help="Path to the JSON file containing system commands for llm model (optional).")
     parser.add_argument("--generation_args_file", 
                         help="Path to the JSON file containing generation arguments (optional).")
+    parser.add_argument("--id_field",
+                        required=True,
+                        help="Field that ids artifact")
 
     args = parser.parse_args()
     
